@@ -5,6 +5,33 @@
 #include <string.h>
 #include "optparse.h"
 
+/*
+ ./a.out foo bar -I/usr/include quux --load=foo.dll -Ic:/blah/include dorks --load
+include: </usr/include>
+loading <foo.dll>
+include: <c:/blah/include>
+error: --load needs an argument
+positional args:
+nargv[0] = "foo"
+nargv[1] = "bar"
+nargv[2] = "quux"
+nargv[3] = "dorks"
+
+===========================
+
+./a.out foo bar -I/usr/include quux -- --load=foo.dll -Ic:/blah/include dorks --load
+include: </usr/include>
+positional args:
+nargv[0] = "foo"
+nargv[1] = "bar"
+nargv[2] = "quux"
+nargv[3] = "--load=foo.dll"
+nargv[4] = "-Ic:/blah/include"
+nargv[5] = "dorks"
+nargv[6] = "--load"
+
+*/
+
 void print_help(const char* arg0)
 {
     printf("help for %s goes here\n", arg0);
@@ -15,14 +42,15 @@ int main(int argc, char** argv)
     optparser_t prs;
     int i;
     int c;
-    bool islong;
+    char* fopt;
+    char* fval;
     bool pretty;
     (void)pretty;
     pretty = false;
     optparse_init(&prs, argc, argv, 1, 255, 255);
     while(true)
     {
-        if((c = optparse_parse(&prs, &islong)) == -1)
+        if((c = optparse_parse(&prs, &fopt, &fval)) == -1)
         {
             break;
         }
@@ -30,6 +58,32 @@ int main(int argc, char** argv)
         {
             switch(c)
             {
+                /* handle long options: */
+                case 1:
+                    {
+                        if(strcmp(fopt, "--help") == 0)
+                        {
+                            print_help(argv[0]);
+                            return 0;
+                        }
+                        else if(strcmp(fopt, "--load") == 0)
+                        {
+                            if(fval != NULL)
+                            {
+                                printf("loading <%s>\n", fval);
+                            }
+                            else
+                            {
+                                printf("error: --load needs an argument\n");
+                            }
+                        }
+                        else
+                        {
+                            printf("error: unrecognized long option '%s'\n", fopt);
+                        }
+                    }
+                    break;
+                /* handle short options */
                 case 'h':
                     print_help(argv[0]);
                     return 0;
@@ -39,6 +93,16 @@ int main(int argc, char** argv)
                     break;
                 case 'v':
                     printf("verbose mode\n");
+                    break;
+                case 'I':
+                    if(fval != NULL)
+                    {
+                        printf("include: <%s>\n", fval);
+                    }
+                    else
+                    {
+                        printf("error: option '-I' needs a value\n");
+                    }
                     break;
                 default:
                     fprintf(stderr, "unrecognized option '-%c'\n", c);

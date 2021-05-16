@@ -158,9 +158,10 @@ static bool optparse_init(optparser_t* prs, int argc, char** argv, int begin, si
 *
 * the return value depends on what it encounters:
 *
-*   0:      a positional argument, which is appended to nargv.
-*   -1:     end of argv, or an error occured. either way, this value marks exiting the loop.
-*  1..256:  a option. for example, if argv[n] is "-p", then the return value is 'p' (decimal 112).
+*       0:   a positional argument, which is appended to nargv.
+*      -1:   end of argv, or an error occured. either way, this value marks exiting the loop.
+*       1:   a long option. full option will be stored in $fullopt.
+*  2..256:   a short option. for example, if argv[n] is "-p", then the return value is 'p' (decimal 112).
 *
 * if argv[n] is "--", then future parsing is disabled; this is what getopt() (and similar libs) does.
 * so, argv[]={"foo", "-p", "bar", "--", "quux", "-f", "-d"} would result in
@@ -173,16 +174,35 @@ static bool optparse_init(optparser_t* prs, int argc, char** argv, int begin, si
 *   will be set to true if the argument is a long option, i.e., "--foo".
 *   that's all it does for now; actual long parsing isn't included (yet!)
 */
-static int optparse_parse(optparser_t* prs, bool* islong)
+static int optparse_parse(optparser_t* prs, char** fullopt, char** optval)
 {
+    /*
+    * length was chosen by fair dice roll.
+    * guaranteed to theoretically be long enough to contain even unreasonably long options,
+    * like those used by LLVM utilities.
+    * potentially too short for options like inclusion opts...
+    * (-Iz:/dev/foo/bar/baz/quux/.../stuff/things/frobwise/threeth/...)
+    */
+    enum{ kScratchpadLength = (1024 * 2) };
+    int i;
+    int vend;
+    int slen;
+    char* tmp;
     char* arg;
-    *islong = false;
+    /*
+    * where the string for long options is temporarily stored.
+    */
+    static char scratchpad[kScratchpadLength + 1];
+    *fullopt = NULL;
+    *optval = NULL;
     if((prs->track >= prs->oargc) || (prs->track >= prs->maxargv))
     {
         prs->unparsedidx = prs->track;
         return -1;
     }
     arg = prs->oargv[prs->track];
+    slen = (int)strlen(arg);
+    *fullopt = arg;
     prs->track++;
     if((prs->stopparsing == false) && (arg[0] == '-'))
     {
@@ -196,13 +216,31 @@ static int optparse_parse(optparser_t* prs, bool* islong)
             }
             else
             {
-                *islong = true;
-                fprintf(stderr, "optparse: cannot parse long options yet\n");
-                return -1;
+                memset(scratchpad, 0, kScratchpadLength);
+                if((tmp = strchr(arg, '=')) != NULL)
+                {
+                    /* there's a value, something like "--foo=bar" */
+                    for(i=0; i<slen; i++)
+                    {
+                        if(arg[i] == '=')
+                        {
+                            vend = i;
+                            break;
+                        }
+                    }
+                    memcpy(scratchpad, arg, slen - (vend + 2));
+                    *fullopt = scratchpad;
+                    *optval = (arg + (vend + 1));
+                }
+                return 1;
             }
         }
         else
         {
+            if(arg[2] != 0)
+            {
+                *optval = (arg + 2);
+            }
             return arg[1];
         }
     }
