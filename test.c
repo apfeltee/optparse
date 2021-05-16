@@ -45,10 +45,12 @@ int main(int argc, char** argv)
     char* fopt;
     char* fval;
     bool pretty;
+    bool finished;
     (void)pretty;
+    finished = false;
     pretty = false;
     optparse_init(&prs, argc, argv, 1, 255, 255);
-    while(true)
+    while(!finished)
     {
         if((c = optparse_parse(&prs, &fopt, &fval)) == -1)
         {
@@ -86,7 +88,8 @@ int main(int argc, char** argv)
                 /* handle short options */
                 case 'h':
                     print_help(argv[0]);
-                    return 0;
+                    finished = true;
+                    break;
                 case 'p':
                     printf("will prettyfy\n");
                     pretty = true;
@@ -111,11 +114,13 @@ int main(int argc, char** argv)
             }
         }
     }
-
-    printf("positional args:\n");
-    for(i=0; i<prs.nargc; i++)
+    if(prs.nargc > 0)
     {
-        printf("nargv[%d] = \"%s\"\n", i, prs.nargv[i]);
+        printf("positional args:\n");
+        for(i=0; i<prs.nargc; i++)
+        {
+            printf("nargv[%d] = \"%s\"\n", i, prs.nargv[i]);
+        }
     }
     optparse_finish(&prs);
     return 0;

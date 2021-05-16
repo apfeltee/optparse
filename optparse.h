@@ -216,7 +216,9 @@ static int optparse_parse(optparser_t* prs, char** fullopt, char** optval)
             }
             else
             {
+                /* reset scratchpad */
                 memset(scratchpad, 0, kScratchpadLength);
+                /* is there a value attached? */
                 if((tmp = strchr(arg, '=')) != NULL)
                 {
                     /* there's a value, something like "--foo=bar" */
@@ -228,6 +230,13 @@ static int optparse_parse(optparser_t* prs, char** fullopt, char** optval)
                             break;
                         }
                     }
+                    /*
+                    * the full option is: $lengthOfArgument - ($whereEqualSignAppears + 2)
+                    * so, with "--foo=bar":
+                    *       $lengthOfArgument=9
+                    *       $whereEqualSignAppears=5
+                    *
+                    */
                     memcpy(scratchpad, arg, slen - (vend + 2));
                     *fullopt = scratchpad;
                     *optval = (arg + (vend + 1));
@@ -237,6 +246,12 @@ static int optparse_parse(optparser_t* prs, char** fullopt, char** optval)
         }
         else
         {
+            /*
+            * for short options, the value is just the string minus "-" and the opt char.
+            * in cling:
+            *   [cling]$ std::cout << ("-I/foo" + 2) << std::endl;
+            *   /foo
+            */
             if(arg[2] != 0)
             {
                 *optval = (arg + 2);
